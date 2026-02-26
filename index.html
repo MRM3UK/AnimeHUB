@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamX – Real M3U8 Sniffer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06060a;--s1:#0d0d12;--s2:#111118;--bd:#191921;
+  --acc:#e8390e;--acc2:#ff7a00;--grn:#00e676;--blu:#4da8ff;--ylw:#ffd740;--pur:#c471ed;
+  --txt:#eaeaea;--m1:#484858;--m2:#28283a;
+  --glow:0 0 22px rgba(232,57,14,.38);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:'JetBrains Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(232,57,14,.016) 1px,transparent 1px),linear-gradient(90deg,rgba(232,57,14,.016) 1px,transparent 1px);background-size:46px 46px;pointer-events:none;z-index:0;}
+.w{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:16px 12px;}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,5vw,52px);letter-spacing:5px;background:linear-gradient(130deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
+.hright{text-align:right;font-size:9px;color:var(--m1);letter-spacing:1.5px;line-height:1.8;}
+.hright b{color:var(--grn);}
+
+/* BACKEND STATUS BAR */
+#bkbar{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:8px 14px;margin-bottom:12px;flex-wrap:wrap;}
+.bk-ind{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:1px;}
+.bk-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.bk-dot.on{background:var(--grn);box-shadow:0 0 6px var(--grn);}
+.bk-dot.off{background:#f44;}
+.bk-dot.chk{background:var(--ylw);animation:blink 1s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.bk-label{color:var(--m1);}
+.bk-label.on{color:var(--grn);}
+.bk-label.off{color:#f55;}
+#bk-port-inp{background:var(--bg);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;border-radius:3px;width:80px;outline:none;}
+.bk-check{background:none;border:1px solid var(--bd);color:var(--m1);font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:3px;cursor:pointer;}
+.bk-check:hover{border-color:var(--acc2);color:var(--acc2);}
+.bk-sep{width:1px;height:20px;background:var(--bd);}
+.bk-hint{font-size:9px;color:var(--m1);letter-spacing:.5px;}
+.bk-hint code{color:var(--acc2);background:var(--bg);padding:1px 5px;border-radius:2px;}
+
+/* TABS */
+.tabs{display:flex;border:1px solid var(--bd);border-radius:5px;overflow:hidden;margin-bottom:12px;}
+.tab{flex:1;background:var(--s1);border:none;color:var(--m1);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.5px;padding:9px 3px;cursor:pointer;transition:all .2s;border-right:1px solid var(--bd);}
+.tab:last-child{border-right:none;}
+.tab:hover{color:var(--txt);}
+.tab.on{background:rgba(232,57,14,.1);color:var(--acc);font-weight:700;}
+
+/* CARD */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:14px;margin-bottom:12px;}
+.clbl{font-size:9px;letter-spacing:2px;color:var(--m1);text-transform:uppercase;margin-bottom:8px;}
+
+/* INPUT */
+.irow{display:flex;gap:7px;}
+.iwrap{flex:1;position:relative;}
+.iwrap input{width:100%;background:var(--bg);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:13px;padding:11px 34px 11px 12px;border-radius:4px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.iwrap input:focus{border-color:var(--acc);box-shadow:var(--glow);}
+.iwrap input::placeholder{color:var(--m1);}
+.xb{position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--m1);font-size:18px;cursor:pointer;display:none;line-height:1;}
+.xb:hover{color:var(--txt);}
+
+/* BUTTONS */
+.gbtn{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;border:none;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;padding:0 18px;border-radius:4px;cursor:pointer;min-height:42px;white-space:nowrap;transition:opacity .2s,box-shadow .2s;}
+.gbtn:hover{opacity:.88;box-shadow:var(--glow);}
+.gbtn:active{transform:scale(.97);}
+.gbtn:disabled{background:var(--m1);cursor:not-allowed;}
+.sbtn{background:var(--s2);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:10px;padding:6px 12px;border-radius:4px;cursor:pointer;white-space:nowrap;transition:border-color .2s,color .2s;}
+.sbtn:hover{border-color:var(--acc);color:var(--acc);}
+.sbtn.g{background:rgba(0,230,118,.06);border-color:rgba(0,230,118,.2);color:var(--grn);}
+.sbtn.g:hover{border-color:var(--grn);}
+.sbtn.b{background:rgba(77,168,255,.06);border-color:rgba(77,168,255,.2);color:var(--blu);}
+.sbtn.b:hover{border-color:var(--blu);}
+
+/* PLATFORM PILLS */
+.plats{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap;align-items:center;}
+.plbl{font-size:9px;color:var(--m1);letter-spacing:1px;}
+.pp{background:var(--bg);border:1px solid var(--bd);color:var(--m1);font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:14px;cursor:pointer;transition:all .2s;}
+.pp:hover{border-color:var(--acc2);color:var(--acc2);}
+.pp.on{border-color:var(--acc);color:var(--acc);background:rgba(232,57,14,.08);}
+
+/* SNIFF STATUS */
+#snbar{display:none;background:var(--bg);border:1px solid var(--bd);border-radius:4px;margin-top:10px;overflow:hidden;}
+.snhdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--bd);background:rgba(232,57,14,.04);}
+.sntitle{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--acc);letter-spacing:2px;}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--acc);animation:pls 1s ease-in-out infinite;}
+@keyframes pls{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+#sncount{font-size:10px;color:var(--grn);letter-spacing:1px;}
+#snlog{max-height:160px;overflow-y:auto;padding:8px 12px;font-size:10px;line-height:1.9;}
+.sll{display:flex;gap:8px;}
+.slt{color:var(--m1);font-size:9px;flex-shrink:0;}
+.sl-ok{color:var(--grn)}.sl-fail{color:#f55}.sl-wait{color:var(--acc2)}.sl-info{color:var(--m1)}.sl-hit{color:var(--ylw);font-weight:700;}
+
+/* QUALITY / REFRESH */
+.qrow{display:none;align-items:center;gap:5px;margin-top:9px;flex-wrap:wrap;}
+.qrow.on{display:flex;}
+.ql{font-size:9px;color:var(--m1);}
+.qt{background:var(--bg);border:1px solid var(--bd);color:var(--m1);font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 9px;border-radius:3px;cursor:pointer;transition:all .2s;}
+.qt:hover{border-color:var(--acc2);color:var(--acc2);}
+.qt.on{border-color:var(--acc);color:var(--acc);background:rgba(232,57,14,.08);}
+.rrow{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:10px;color:var(--m1);flex-wrap:wrap;}
+.tog{position:relative;width:32px;height:17px;flex-shrink:0;}
+.tog input{opacity:0;width:0;height:0;}
+.ttr{position:absolute;inset:0;background:var(--bd);border-radius:20px;cursor:pointer;transition:background .2s;}
+.tog input:checked+.ttr{background:var(--acc);}
+.tth{position:absolute;top:2.5px;left:2.5px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none;}
+.tog input:checked~.tth{transform:translateX(15px);}
+.rsel{background:var(--bg);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 6px;border-radius:3px;}
+
+/* RESULTS LIST */
+#rlist{display:none;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:12px;margin-bottom:12px;}
+.rlhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;}
+.rlttl{font-size:10px;letter-spacing:2px;color:var(--ylw);display:flex;align-items:center;gap:6px;}
+.ri{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:9px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .2s;}
+.ri:hover{border-color:var(--acc);}
+.ri.best{border-color:var(--grn);}
+.ri-meta{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;}
+.rbadge{font-size:8px;letter-spacing:.5px;padding:2px 7px;border-radius:8px;font-weight:700;border:1px solid;}
+.rb-q{border-color:rgba(232,57,14,.4);background:rgba(232,57,14,.12);color:var(--acc);}
+.rb-best{border-color:rgba(0,230,118,.4);background:rgba(0,230,118,.12);color:var(--grn);}
+.rb-m{border-color:rgba(77,168,255,.3);background:rgba(77,168,255,.08);color:var(--blu);}
+.rb-bk{border-color:rgba(196,113,237,.4);background:rgba(196,113,237,.1);color:var(--pur);}
+.ri-url{font-size:9px;color:var(--acc2);word-break:break-all;line-height:1.6;margin-bottom:6px;}
+.ri-acts{display:flex;gap:5px;flex-wrap:wrap;}
+
+/* PLAYER */
+#psec{display:none;background:var(--s1);border:1px solid var(--bd);border-radius:5px;overflow:hidden;margin-bottom:12px;}
+.pbar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(232,57,14,.04);border-bottom:1px solid var(--bd);flex-wrap:wrap;gap:6px;}
+.lpill{display:flex;align-items:center;gap:5px;background:rgba(232,57,14,.14);border:1px solid var(--acc);border-radius:20px;padding:3px 10px;font-size:9px;color:var(--acc);letter-spacing:2px;font-weight:700;}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:pls 1.3s ease-in-out infinite;box-shadow:0 0 5px var(--acc);}
+#puname{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:3px;}
+.pmeta{font-size:9px;color:var(--m1);}
+.vwrap{position:relative;padding-top:56.25%;background:#000;}
+video{position:absolute;inset:0;width:100%;height:100%;}
+#vov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.88);z-index:2;gap:10px;font-size:11px;color:var(--m1);}
+#vov.hide{display:none;}
+.bsp{width:34px;height:34px;border:3px solid rgba(232,57,14,.2);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* GRID */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px;flex-wrap:wrap;gap:6px;}
+.sec-ttl{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;}
+.sec-sub{font-size:9px;color:var(--m1);letter-spacing:1px;margin-top:1px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:9px;}
+.mc{background:var(--s1);border:1px solid var(--bd);border-radius:5px;overflow:hidden;cursor:pointer;transition:border-color .2s,transform .15s;position:relative;}
+.mc:hover{border-color:var(--acc);transform:translateY(-2px);}
+.mc.wl{border-color:rgba(255,119,0,.3);}
+.tw{position:relative;padding-top:75%;background:#0a0a0f;}
+.tw img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.pbg{position:absolute;top:5px;left:5px;font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:8px;font-weight:700;text-transform:uppercase;}
+.pb-sc{background:rgba(196,113,237,.85);color:#fff;}
+.pb-cb{background:rgba(255,140,0,.85);color:#fff;}
+.pb-jm{background:rgba(0,200,150,.85);color:#fff;}
+.starb{position:absolute;bottom:5px;right:5px;background:rgba(0,0,0,.65);border:1px solid var(--bd);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:border-color .2s;z-index:2;}
+.starb:hover{border-color:var(--acc2);}
+.starb.on{border-color:var(--acc2);}
+.mi{padding:6px 8px;}
+.mn{font-size:10px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ms{font-size:9px;color:var(--m1);}
+
+/* WATCHLIST */
+.wlr{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px;}
+.wlr:last-child{border-bottom:none;}
+.wln{flex:1;}.wlpl{font-size:9px;color:var(--m1);min-width:52px;}
+.wlst{font-size:9px;min-width:50px;}
+.wlst.on{color:var(--grn)}.wlst.off{color:var(--m1)}
+.wlp{background:none;border:1px solid var(--bd);color:var(--acc);font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;}
+.wlp:hover{border-color:var(--acc);background:rgba(232,57,14,.08);}
+.wlx{background:none;border:none;color:var(--m1);font-size:14px;cursor:pointer;padding:0 3px;}
+.wlx:hover{color:#f55;}
+.wladd{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.wladd input{flex:1;min-width:100px;background:var(--bg);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 10px;border-radius:4px;outline:none;}
+.wladd input:focus{border-color:var(--acc);}
+.msel{background:var(--bg);border:1px solid var(--bd);color:var(--txt);font-family:'JetBrains Mono',monospace;font-size:10px;padding:7px;border-radius:4px;}
+.addwb{background:var(--acc);color:#fff;border:none;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:0 13px;border-radius:4px;cursor:pointer;}
+.empty{color:var(--m1);font-size:11px;padding:8px 0;}
+
+/* SETUP GUIDE */
+.setup-box{background:rgba(255,215,64,.04);border:1px solid rgba(255,215,64,.15);border-radius:5px;padding:12px 14px;margin-top:10px;font-size:10px;line-height:1.9;color:var(--m1);}
+.setup-box b{color:var(--ylw);}
+.setup-box code{background:var(--bg);color:var(--acc2);padding:2px 7px;border-radius:3px;font-size:9px;display:inline-block;margin:1px 0;}
+
+/* TOAST */
+#toasts{position:fixed;bottom:14px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:6px;max-width:270px;}
+.toast{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:9px 13px;font-size:10px;animation:tin .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.6);}
+.toast.urg{border-color:var(--grn);}
+.tt{color:var(--grn);font-weight:700;margin-bottom:2px;}
+.tm{color:var(--m1);}
+@keyframes tin{from{transform:translateX(60px);opacity:0}to{transform:none;opacity:1}}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="w">
+
+  <header>
+    <div class="logo">STREAM<span style="-webkit-text-fill-color:#14141e">X</span></div>
+    <div class="hright">
+      HEADLESS BROWSER · NETWORK INTERCEPT · TOKEN SNIFFER<br>
+      <b>● REAL SIGNED M3U8 URLs — STRIPCHAT · CHATURBATE · JERKMATE</b>
+    </div>
+  </header>
+
+  <!-- BACKEND STATUS -->
+  <div id="bkbar">
+    <div class="bk-ind">
+      <div class="bk-dot chk" id="bkdot"></div>
+      <span class="bk-label" id="bklbl">Checking backend...</span>
+    </div>
+    <div class="bk-sep"></div>
+    <span style="font-size:9px;color:var(--m1);">Port:</span>
+    <input id="bk-port-inp" value="7777" placeholder="7777">
+    <button class="bk-check" onclick="checkBackend()">Check</button>
+    <div class="bk-sep"></div>
+    <span class="bk-hint">Run: <code>python3 sniffer.py</code> — then refresh this page</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="showTab('browse')">🔥 Live Now</button>
+    <button class="tab" onclick="showTab('extract')">⚡ Sniffer</button>
+    <button class="tab" onclick="showTab('watchlist')">★ Watchlist</button>
+  </div>
+
+  <!-- ═══ SNIFFER TAB ═══ -->
+  <div id="tab-extract" style="display:none;">
+    <div class="card">
+      <div class="clbl">URL · topsitecam link · platform/username</div>
+      <div class="irow">
+        <div class="iwrap">
+          <input type="text" id="q"
+            placeholder="topsitecam.com/stripchat/kate-paul/  ·  stripchat/kate-paul  ·  chaturbate/cutee_world"
+            autocomplete="off" spellcheck="false">
+          <button class="xb" id="xb" onclick="clrQ()">×</button>
+        </div>
+        <button class="gbtn" id="gobtn" onclick="doSniff()">SNIFF</button>
+      </div>
+
+      <div class="plats">
+        <span class="plbl">Platform:</span>
+        <button class="pp on" id="pp-sc" onclick="setPl('stripchat',this)">Stripchat</button>
+        <button class="pp" id="pp-cb" onclick="setPl('chaturbate',this)">Chaturbate</button>
+        <button class="pp" id="pp-jm" onclick="setPl('jerkmate',this)">Jerkmate</button>
+      </div>
+
+      <div id="snbar">
+        <div class="snhdr">
+          <div class="sntitle"><div class="pulse"></div>SNIFFING NETWORK TRAFFIC</div>
+          <div id="sncount">0 URLs found</div>
+        </div>
+        <div id="snlog"></div>
+      </div>
+
+      <div class="setup-box" id="setup-hint" style="display:none;">
+        <b>⚠️ Backend not running — Headless mode unavailable</b><br>
+        Falling back to static API/scrape methods (no real signed tokens).<br><br>
+        <b>For full token sniffing, run the backend:</b><br>
+        <code>pip install playwright</code><br>
+        <code>playwright install chromium</code><br>
+        <code>python3 sniffer.py</code><br>
+        Then reload this page. The backend opens a real browser, navigates to the model page,
+        and intercepts all .m3u8 network requests including signed tokens.
+      </div>
+
+      <div class="qrow" id="qrow">
+        <span class="ql">Quality:</span>
+        <button class="qt on" onclick="switchQ(this,'auto')">AUTO</button>
+        <button class="qt" onclick="switchQ(this,'1080')">1080p</button>
+        <button class="qt" onclick="switchQ(this,'720')">720p</button>
+        <button class="qt" onclick="switchQ(this,'480')">480p</button>
+        <button class="qt" onclick="switchQ(this,'240')">240p</button>
+      </div>
+      <div class="rrow">
+        <label class="tog"><input type="checkbox" id="artog" onchange="toggleAR()"><div class="ttr"></div><div class="tth"></div></label>
+        <span>Auto-refresh every</span>
+        <select class="rsel" id="rsel"><option value="20">20s</option><option value="40" selected>40s</option><option value="60">60s</option><option value="120">2m</option></select>
+        <span id="rcd" style="color:var(--acc2);display:none;"></span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="rlist">
+      <div class="rlhd">
+        <div class="rlttl">🎯 INTERCEPTED STREAM URLs</div>
+        <div style="display:flex;gap:6px;">
+          <button class="sbtn" onclick="dlAllM3U()">⬇ All as .m3u</button>
+          <button class="sbtn" onclick="clearResults()">Clear</button>
+        </div>
+      </div>
+      <div id="rl-items"></div>
+    </div>
+
+    <div id="psec">
+      <div class="pbar">
+        <div class="lpill"><div class="ldot"></div>LIVE</div>
+        <span id="puname">—</span>
+        <span class="pmeta" id="pmeta">—</span>
+      </div>
+      <div class="vwrap">
+        <video id="vid" controls autoplay muted playsinline></video>
+        <div id="vov"><div class="bsp"></div><span>Connecting to stream...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ BROWSE TAB ═══ -->
+  <div id="tab-browse">
+    <div class="sec-hd">
+      <div>
+        <div class="sec-ttl">🔴 Couples Live Now</div>
+        <div class="sec-sub" id="gsub">Loading...</div>
+      </div>
+      <button class="sbtn" onclick="loadGrid()">↻ Refresh</button>
+    </div>
+    <div class="grid" id="mgrid"></div>
+  </div>
+
+  <!-- ═══ WATCHLIST TAB ═══ -->
+  <div id="tab-watchlist" style="display:none;">
+    <div class="card">
+      <div class="clbl">Saved Models — Notified when live</div>
+      <div id="wll"><div class="empty">No models saved. Click ★ on a card.</div></div>
+      <div class="wladd">
+        <input type="text" id="wlin" placeholder="username">
+        <select class="msel" id="wlpl">
+          <option value="stripchat">Stripchat</option>
+          <option value="chaturbate">Chaturbate</option>
+          <option value="jerkmate">Jerkmate</option>
+        </select>
+        <button class="addwb" onclick="addWL()">+ ADD</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+let curUser='', curPlatform='stripchat', curUrl='';
+let hlsInst=null, arTimer=null, cdTimer=null;
+let results=[];
+let watchlist=JSON.parse(localStorage.getItem('sx3_wl')||'[]');
+let backendOk=false;
+let backendPort=7777;
+
+/* ═══════════════════════════════════════════════════════════
+   BACKEND CHECK
+═══════════════════════════════════════════════════════════ */
+async function checkBackend(){
+  const dot=document.getElementById('bkdot');
+  const lbl=document.getElementById('bklbl');
+  dot.className='bk-dot chk';
+  lbl.className='bk-label';
+  lbl.textContent='Checking...';
+  const port=parseInt(document.getElementById('bk-port-inp').value)||7777;
+  backendPort=port;
+  try{
+    const r=await fetch(`http://localhost:${port}/health`,{signal:AbortSignal.timeout(3000)});
+    const d=await r.json();
+    if(d.ok){
+      backendOk=true;
+      dot.className='bk-dot on';
+      lbl.className='bk-label on';
+      lbl.textContent=`Backend LIVE on :${port} — Playwright:${d.playwright?'✓':'✗'}`;
+      document.getElementById('setup-hint').style.display='none';
+      toast('Backend connected!',`Headless sniffer ready on port ${port}`);
+    }else throw new Error('not ok');
+  }catch{
+    backendOk=false;
+    dot.className='bk-dot off';
+    lbl.className='bk-label off';
+    lbl.textContent=`Backend not found on :${port} — fallback mode`;
+    document.getElementById('setup-hint').style.display='block';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TABS / PLATFORM
+═══════════════════════════════════════════════════════════ */
+function showTab(t){
+  ['browse','extract','watchlist'].forEach((id,i)=>{
+    document.getElementById('tab-'+id).style.display=id===t?'block':'none';
+    document.querySelectorAll('.tab')[i].classList.toggle('on',id===t);
+  });
+  if(t==='watchlist')renderWL();
+}
+function setPl(p,el){
+  document.querySelectorAll('.pp').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on'); curPlatform=p;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT PARSE
+═══════════════════════════════════════════════════════════ */
+document.getElementById('q').addEventListener('input',function(){
+  document.getElementById('xb').style.display=this.value?'block':'none';
+  const v=this.value;
+  if(/stripchat/i.test(v))setPl('stripchat',document.getElementById('pp-sc'));
+  else if(/chaturbate/i.test(v))setPl('chaturbate',document.getElementById('pp-cb'));
+  else if(/jerkmate/i.test(v))setPl('jerkmate',document.getElementById('pp-jm'));
+});
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')doSniff();});
+function clrQ(){document.getElementById('q').value='';document.getElementById('xb').style.display='none';}
+
+function parseInput(raw){
+  raw=raw.trim();
+  const tc=raw.match(/topsitecam\.com\/(stripchat|chaturbate|jerkmate)\/([^/?#\s]+)/i);
+  if(tc)return{platform:tc[1].toLowerCase(),user:tc[2].toLowerCase()};
+  const sc=raw.match(/(?:www\.)?stripchat\.com\/([^/?#\s]+)/i);
+  if(sc)return{platform:'stripchat',user:sc[1].toLowerCase()};
+  const cb=raw.match(/(?:www\.)?chaturbate\.com\/([^/?#\s]+)/i);
+  if(cb)return{platform:'chaturbate',user:cb[1].toLowerCase()};
+  const jm=raw.match(/(?:www\.)?jerkmate\.com\/([^/?#\s]+)/i);
+  if(jm)return{platform:'jerkmate',user:jm[1].toLowerCase()};
+  const sh=raw.match(/^(stripchat|chaturbate|jerkmate|sc|cb|jm)[:/]([^\s/?#]+)/i);
+  if(sh){const m={sc:'stripchat',cb:'chaturbate',jm:'jerkmate'};return{platform:m[sh[1].toLowerCase()]||sh[1].toLowerCase(),user:sh[2].toLowerCase()};}
+  return{platform:curPlatform,user:raw.replace(/[/?#\s].*/,'').toLowerCase()};
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOG
+═══════════════════════════════════════════════════════════ */
+function logClear(){document.getElementById('snlog').innerHTML='';document.getElementById('snbar').style.display='block';}
+function logL(msg,cls){
+  const b=document.getElementById('snlog');
+  const t=new Date().toLocaleTimeString('en',{hour12:false});
+  const d=document.createElement('div');d.className='sll';
+  d.innerHTML=`<span class="slt">${t}</span><span class="${cls}">${msg}</span>`;
+  b.appendChild(d);b.scrollTop=b.scrollHeight;
+}
+const L={ok:m=>logL('✓ '+m,'sl-ok'),fail:m=>logL('✗ '+m,'sl-fail'),wait:m=>logL('… '+m,'sl-wait'),info:m=>logL('› '+m,'sl-info'),hit:m=>logL('🎯 '+m,'sl-hit')};
+
+/* ═══════════════════════════════════════════════════════════
+   CORS PROXIES (fallback when backend not available)
+═══════════════════════════════════════════════════════════ */
+const PROXIES=[
+  u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u=>`https://thingproxy.freeboard.io/fetch/${u}`,
+];
+const M3U8_RE=/https?:\/\/[a-zA-Z0-9.\-_]+\/[^\s"'<>\\]*(?:\.m3u8|playlist\.m3u8|index\.m3u8|master\.m3u8)(?:\?[^\s"'<>\\]*)?/gi;
+
+async function pFetch(url,asJson=false,timeout=9000){
+  try{
+    const r=await fetch(url,{signal:AbortSignal.timeout(3500),credentials:'omit'});
+    if(r.ok){const t=await r.text();if(t.length>100){return asJson?JSON.parse(t):t;}}
+  }catch{}
+  for(const px of PROXIES){
+    try{
+      const r=await fetch(px(url),{signal:AbortSignal.timeout(timeout)});
+      if(!r.ok)continue;
+      const txt=await r.text();
+      return asJson?JSON.parse(txt):txt;
+    }catch{}
+  }
+  throw new Error('All fetch methods failed');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   URL COLLECTOR
+═══════════════════════════════════════════════════════════ */
+function scoreUrl(url){
+  if(/master/i.test(url)&&!/480|360|240/i.test(url)) return 100;
+  if(/1080/i.test(url)) return 92;
+  if(/720/i.test(url)) return 85;
+  if(/480/i.test(url)) return 72;
+  if(/360/i.test(url)) return 62;
+  if(/240/i.test(url)) return 52;
+  if(/index|playlist/i.test(url)) return 78;
+  return 65;
+}
+function qualLabel(url){
+  if(/1080/.test(url)) return '1080p';
+  if(/720/.test(url))  return '720p';
+  if(/480/.test(url))  return '480p';
+  if(/360/.test(url))  return '360p';
+  if(/240/.test(url))  return '240p';
+  if(/master/i.test(url)) return 'MASTER';
+  return 'STREAM';
+}
+
+function addResult(url,method,isBk=false){
+  url=url.replace(/\\u0026/g,'&').replace(/\\\//g,'/').trim();
+  if(!url.startsWith('http')||!url.includes('.m3u8'))return false;
+  if(results.find(r=>r.url===url))return false;
+  const entry={url,method,score:scoreUrl(url),quality:qualLabel(url),ts:Date.now(),backend:isBk};
+  results.push(entry);
+  results.sort((a,b)=>b.score-a.score);
+  document.getElementById('sncount').textContent=`${results.length} URL${results.length!==1?'s':''} found`;
+  L.hit(`[${entry.quality}] ${method}: ${url.substring(0,75)}...`);
+  renderResults();
+  // Auto-play first result
+  if(results.length===1||(isBk&&entry.score>=80)){
+    playUrl(url,method);
+  }
+  return true;
+}
+
+function renderResults(){
+  if(!results.length)return;
+  document.getElementById('rlist').style.display='block';
+  document.getElementById('rl-items').innerHTML=results.map((r,i)=>`
+    <div class="ri${i===0?' best':''}" onclick="playUrl('${esc(r.url)}','${esc(r.method)}')">
+      <div class="ri-meta">
+        <span class="rbadge rb-q">${r.quality}</span>
+        ${i===0?'<span class="rbadge rb-best">✓ BEST</span>':''}
+        ${r.backend?'<span class="rbadge rb-bk">🤖 HEADLESS</span>':''}
+        <span class="rbadge rb-m">${r.method}</span>
+        <span style="font-size:9px;color:var(--m1);margin-left:auto;">${new Date(r.ts).toLocaleTimeString()}</span>
+      </div>
+      <div class="ri-url">${r.url}</div>
+      <div class="ri-acts" onclick="event.stopPropagation()">
+        <button class="sbtn" onclick="cp('${esc(r.url)}')">⎘ Copy</button>
+        <button class="sbtn g" onclick="iVLC('${esc(r.url)}')">▶ VLC</button>
+        <button class="sbtn b" onclick="iMX('${esc(r.url)}')">▶ MX</button>
+        <button class="sbtn" onclick="iKodi('${esc(r.url)}')">⬛ Kodi</button>
+        <button class="sbtn" onclick="dl1('${esc(r.url)}','${curUser}')">⬇ .m3u</button>
+      </div>
+    </div>`).join('');
+}
+function esc(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function clearResults(){results=[];document.getElementById('rlist').style.display='none';document.getElementById('sncount').textContent='0 URLs found';}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN SNIFFER — tries backend first, then fallback
+═══════════════════════════════════════════════════════════ */
+async function doSniff(){
+  const raw=document.getElementById('q').value;
+  if(!raw.trim()){alert('Enter a username or URL');return;}
+  const {platform,user}=parseInput(raw);
+  curUser=user; curPlatform=platform;
+
+  showTab('extract');
+  document.getElementById('gobtn').disabled=true;
+  results=[];clearResults();logClear();
+  L.info(`TARGET: [${platform.toUpperCase()}] ${user}`);
+
+  document.getElementById('puname').textContent=user.toUpperCase();
+  document.getElementById('pmeta').textContent=`${platform}`;
+
+  // ── TACTIC A: HEADLESS BACKEND ──────────────────────────
+  if(backendOk){
+    L.info('🤖 Headless browser sniffer active...');
+    L.wait('Opening real browser, navigating to platform page...');
+    L.wait('Intercepting all network requests (10-25s)...');
+    try{
+      const r=await fetch(`http://localhost:${backendPort}/sniff?platform=${platform}&user=${user}`,
+        {signal:AbortSignal.timeout(35000)});
+      const d=await r.json();
+      if(d.urls&&d.urls.length){
+        d.urls.forEach(u=>addResult(u.url,`Headless:${u.method||'intercept'}`,true));
+        L.ok(`Headless: ${d.urls.length} real signed URLs captured`);
+      }else{
+        L.fail('Headless: 0 URLs captured (room offline or JS-protected)');
+      }
+    }catch(e){
+      L.fail(`Headless error: ${e.message}`);
+      backendOk=false;
+    }
+  }else{
+    document.getElementById('setup-hint').style.display='block';
+    L.info('Backend not running — using static fallback methods');
+  }
+
+  // ── TACTIC B: DIRECT PLATFORM APIs ──────────────────────
+  L.info('Direct API extraction...');
+  await Promise.allSettled([
+    apiExtract(platform,user),
+    cdnProbe(platform,user),
+  ]);
+
+  document.getElementById('gobtn').disabled=false;
+
+  if(!results.length){
+    L.fail('❌ No stream URLs found. Room may be offline.');
+    L.info('Tip: Make sure sniffer.py backend is running for signed token capture.');
+  }else{
+    L.ok(`✅ Done — ${results.length} URLs found. Best: ${results[0].quality}`);
+  }
+}
+
+/* ─── API EXTRACTION ─── */
+async function apiExtract(platform,user){
+  if(platform==='chaturbate'){
+    L.wait('CB API...');
+    try{
+      const d=await pFetch(`https://chaturbate.com/api/chatvideocontext/${user}/`,true);
+      if(d?.room_status&&d.room_status!=='public') throw new Error(`Room is ${d.room_status}`);
+      [d?.hls_source,d?.opus_src].filter(Boolean).forEach(u=>addResult(u,'CB API'));
+      if(d?.opus?.streams) Object.values(d.opus.streams).forEach(s=>s?.url&&addResult(s.url,'CB API streams'));
+      L.ok('CB API done');
+    }catch(e){L.fail('CB API: '+e.message);}
+    // Scrape page for embedded tokens
+    try{
+      const html=await pFetch(`https://chaturbate.com/${user}/`);
+      [...html.matchAll(/https?:\/\/[a-z0-9.\-]+live\.mmcdn\.com\/[^\s"'<>]+\.m3u8(?:\?[^\s"'<>]*)?/gi)]
+        .forEach(m=>addResult(m[0],'CB page token'));
+      // Try to find amlst token
+      const amlstMatch=html.match(/amlst:([a-z0-9_\-]+-[a-f0-9]{64}_[a-z_0-9]+)/i);
+      if(amlstMatch){
+        const token=amlstMatch[1];
+        addResult(`https://edge-hls.live.mmcdn.com/live-hls/amlst:${token}/playlist.m3u8`,'CB amlst token');
+      }
+    }catch{}
+  }
+  else if(platform==='stripchat'){
+    L.wait('SC API...');
+    try{
+      const d=await pFetch(`https://stripchat.com/api/front/v2/models/username/${user}/cam`,true);
+      const m=d?.model||d;
+      [m?.hlsSrc,m?.iSrc,m?.streamUrl,m?.playbackUrl].filter(Boolean).forEach(u=>addResult(u,'SC API'));
+      const rid=m?.id||m?.userId||m?.roomId||m?.broadcastId;
+      if(rid){
+        L.ok(`SC roomId: ${rid}`);
+        ['1080','720','480','360'].forEach(q=>
+          addResult(`https://edge-hls.growcdnssedge.com/hls/${rid}/master/${rid}_${q}p.m3u8`,`SC API rid=${rid}`)
+        );
+        addResult(`https://edge-hls.growcdnssedge.com/hls/${rid}/master/${rid}_master.m3u8`,`SC API rid=${rid}`);
+      }
+      L.ok('SC API done');
+    }catch(e){L.fail('SC API: '+e.message);}
+    // Page scrape for roomId
+    try{
+      const html=await pFetch(`https://stripchat.com/${user}`);
+      [...html.matchAll(/https?:\/\/[a-z0-9.\-]+(?:growcdnssedge|strpst)[^"'\s<>]+\.m3u8[^"'\s<>]*/gi)]
+        .forEach(m=>addResult(m[0],'SC page scrape'));
+      const ridM=html.match(/"(?:userId|roomId|id)"\s*:\s*(\d{5,})/);
+      if(ridM){
+        const rid=ridM[1];
+        L.ok(`SC page roomId: ${rid}`);
+        ['720','480'].forEach(q=>addResult(`https://edge-hls.growcdnssedge.com/hls/${rid}/master/${rid}_${q}p.m3u8`,`SC page rid=${rid}`));
+      }
+    }catch(e){L.fail('SC page: '+e.message);}
+  }
+  else if(platform==='jerkmate'){
+    try{
+      const html=await pFetch(`https://jerkmate.com/${user}`);
+      [...html.matchAll(/https?:\/\/[a-z0-9.\-]+naiadsystems[^\s"'<>]+\.m3u8[^\s"'<>]*/gi)]
+        .forEach(m=>addResult(m[0],'JM naiads token'));
+      [...html.matchAll(M3U8_RE)].forEach(m=>addResult(m[0],'JM page scrape'));
+    }catch(e){L.fail('JM: '+e.message);}
+  }
+}
+
+/* ─── CDN PROBE ─── */
+async function cdnProbe(platform,user){
+  L.wait('CDN edge probe...');
+  const probes=[];
+  if(platform==='chaturbate'||platform==='auto'){
+    const cbEdges=['edge1-sin','edge2-sin','edge9-sin','edge1-fra','edge2-fra','edge1','edge2','edge3'];
+    cbEdges.forEach(e=>{
+      probes.push({url:`https://${e}.live.mmcdn.com/live-hls/amlst:${user}/playlist.m3u8`,method:`CB CDN:${e}`});
+      probes.push({url:`https://${e}.live.mmcdn.com/live-hls/amlst:${user}-sd/playlist.m3u8`,method:`CB CDN:${e} sd`});
+    });
+  }
+  if(platform==='stripchat'||platform==='auto'){
+    const scEdges=['b-hls-04','b-hls-05','b-hls-06','b-hls-07','b-hls-08','b-hls-09','b-hls-10'];
+    scEdges.forEach(e=>{
+      probes.push({url:`https://${e}.strpst.com/hls/${user}/index.m3u8`,method:`SC CDN:${e}`});
+    });
+  }
+  // Run in batches of 5 parallel probes
+  for(let i=0;i<probes.length;i+=5){
+    const batch=probes.slice(i,i+5);
+    await Promise.allSettled(batch.map(async p=>{
+      try{
+        const r=await fetch(p.url,{signal:AbortSignal.timeout(4000),credentials:'omit'});
+        if(r.ok){
+          const body=await r.text();
+          if(body.includes('#EXTM3U')||body.includes('#EXT-X')){
+            addResult(p.url,p.method);
+          }
+        }
+      }catch{
+        // Also try via proxy
+        try{
+          const body=await pFetch(p.url,false,4000);
+          if(body?.includes('#EXTM3U')||body?.includes('#EXT-X'))
+            addResult(p.url,p.method);
+        }catch{}
+      }
+    }));
+  }
+  L.ok('CDN probe done');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HLS PLAYER
+═══════════════════════════════════════════════════════════ */
+function playUrl(url,method){
+  curUrl=url;
+  document.getElementById('psec').style.display='block';
+  document.getElementById('qrow').classList.add('on');
+  document.getElementById('pmeta').textContent=`${curPlatform} · ${method}`;
+  const vid=document.getElementById('vid');
+  const ov=document.getElementById('vov');
+  ov.className='';
+  ov.innerHTML='<div class="bsp"></div><span>Connecting...</span>';
+  if(hlsInst){hlsInst.destroy();hlsInst=null;}
+  if(Hls.isSupported()){
+    hlsInst=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:90,maxBufferLength:40,maxMaxBufferLength:120});
+    hlsInst.loadSource(url);
+    hlsInst.attachMedia(vid);
+    hlsInst.on(Hls.Events.MANIFEST_PARSED,()=>{ov.className='hide';vid.play().catch(()=>{});});
+    hlsInst.on(Hls.Events.FRAG_LOADED,()=>{ov.className='hide';});
+    hlsInst.on(Hls.Events.ERROR,(_,d)=>{
+      if(d.fatal){
+        L.fail(`Player: ${d.details}`);
+        ov.innerHTML=`<span style="color:#f55;font-size:10px;">${d.details}</span>
+          <button onclick="doSniff()" style="margin-top:8px;background:var(--acc);color:#fff;border:none;padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;">↻ Re-Sniff</button>`;
+      }
+    });
+  }else if(vid.canPlayType('application/vnd.apple.mpegurl')){
+    vid.src=url;vid.onloadedmetadata=()=>{ov.className='hide';};vid.play().catch(()=>{});
+  }else{
+    ov.innerHTML='<span>HLS not supported. Use external player buttons.</span>';
+  }
+}
+
+/* ─── QUALITY ─── */
+function switchQ(btn,q){
+  document.querySelectorAll('.qt').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  if(!results.length)return;
+  // Find matching quality in results
+  if(q!=='auto'){
+    const match=results.find(r=>r.url.includes(q+'p')||r.quality===q+'p');
+    if(match){playUrl(match.url,match.method);return;}
+  }
+  // Fall back to best
+  playUrl(results[0].url,results[0].method);
+}
+
+/* ─── AUTO REFRESH ─── */
+function toggleAR(){
+  const on=document.getElementById('artog').checked;
+  clearInterval(arTimer);clearInterval(cdTimer);
+  document.getElementById('rcd').style.display='none';
+  if(on)startARCycle();
+}
+function startARCycle(){
+  const secs=parseInt(document.getElementById('rsel').value);
+  let left=secs;
+  const el=document.getElementById('rcd');
+  el.style.display='inline';el.textContent=`↻ ${left}s`;
+  cdTimer=setInterval(()=>{el.textContent=`↻ ${--left}s`;if(left<=0)clearInterval(cdTimer);},1000);
+  arTimer=setInterval(()=>{if(curUser){doSniff();}if(document.getElementById('artog').checked)startARCycle();},secs*1000);
+}
+
+/* ─── EXTERNAL PLAYERS ─── */
+function cp(url){navigator.clipboard.writeText(url).then(()=>toast('Copied!','URL in clipboard')).catch(()=>prompt('Copy:',url));}
+function iVLC(url){window.location.href=`intent:${url}#Intent;package=org.videolan.vlc;action=android.intent.action.VIEW;type=application/x-mpegurl;end`;setTimeout(()=>{try{window.open(`vlc://${url}`);}catch{}},600);}
+function iMX(url){window.location.href=`intent:${url}#Intent;package=com.mxtech.videoplayer.ad;action=android.intent.action.VIEW;type=video/*;end`;setTimeout(()=>window.location.href=`intent:${url}#Intent;package=com.mxtech.videoplayer.pro;action=android.intent.action.VIEW;type=video/*;end`,1000);}
+function iKodi(url){window.location.href=`intent:${url}#Intent;package=org.xbmc.kodi;action=android.intent.action.VIEW;type=application/x-mpegurl;end`;}
+function dl1(url,name){const b=new Blob([`#EXTM3U\n#EXTINF:-1,${name} LIVE\n${url}\n`],{type:'application/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`${name}.m3u`;a.click();}
+function dlAllM3U(){
+  if(!results.length)return;
+  const lines=results.map((r,i)=>`#EXTINF:-1 tvg-name="${curUser}_${r.quality}",${curUser} [${r.quality}] ${r.method}\n${r.url}`);
+  const b=new Blob([`#EXTM3U\n${lines.join('\n\n')}\n`],{type:'application/x-mpegurl'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`${curUser}_all.m3u`;a.click();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BROWSE GRID
+═══════════════════════════════════════════════════════════ */
+const SEED=[
+  {n:'kate-paul',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/5/3/b/53bbc95019bf685ec9ef6f9069daf29f-thumb-big'},
+  {n:'3littles',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/6/2/c/62c0f2c56b189fe088d7fa59612a85d0-thumb-big'},
+  {n:'marry_cordy',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/e/2/f/e2fc46ca385899c21bae844a4b501acb-thumb-big'},
+  {n:'hot-threesome',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/b/8/7/b8701512926b5cbbe4b445d03dcd8b82-thumb-big'},
+  {n:'ruslanaxx',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/c/b/3/cb34f80da7315c9c18042575a34b3702-thumb-big'},
+  {n:'nura_n_sarah',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/8/6/1/861025c36c9b281b10001cba436f271d-thumb-big'},
+  {n:'lavenderhot',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/e/0/8/e08cd0c4db7a20bca490777a96af5024-thumb-big'},
+  {n:'gingersnap33',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/1/4/d/14db5e11bf56c7cab5ac9e84ce401a2c-thumb-big'},
+  {n:'may-squirt',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/5/a/8/5a8c53186cbc0357001ddcaace0e8ecb-thumb-big'},
+  {n:'gina_akemi',pl:'chaturbate',th:'https://thumb.live.mmcdn.com/ri/gina_akemi.jpg'},
+  {n:'cyanide_candys',pl:'chaturbate',th:'https://thumb.live.mmcdn.com/ri/cyanide_candys.jpg'},
+  {n:'cutee_world',pl:'chaturbate',th:'https://thumb.live.mmcdn.com/ri/cutee_world.jpg'},
+  {n:'hayleex_x',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/0/2/2/022fc3e3b8f7ef531f985eff7aa8473a-thumb-big'},
+  {n:'hall_sextape',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/b/a/b/bab4150b785ecddb8dcc2f2d7edcc89a-thumb-big'},
+  {n:'litzy1_',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/d/2/1/d21e313fd299b9f715c0fd27d5d98359-thumb-big'},
+  {n:'tunderose1',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/8/9/9/8992ccc596dc2816b0534fdb951e13bb-thumb-big'},
+  {n:'lisa2018',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/4/0/9/4099e23a240361abbf2a4608660e19e7-thumb-big'},
+  {n:'andrestarr',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/2/3/a/23a778bdc226ffd6e5d48a8fdfe5c5dd-thumb-big'},
+  {n:'hannahoff',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/b/d/e/bde1522eaae73839894f86db7bc05684-thumb-big'},
+  {n:'propertyofdaddy',pl:'stripchat',th:'https://static-proxy.strpst.com/previews/5/e/2/5e2afbcc48647a8d9e067ce465b3145f-thumb-big'},
+];
+async function loadGrid(){
+  const grid=document.getElementById('mgrid');const sub=document.getElementById('gsub');
+  renderGrid(SEED);sub.textContent='Fetching live list...';
+  try{
+    const html=await pFetch('https://topsitecam.com/webcam/couples/');
+    const models=[];const seen=new Set();
+    const re=/<a[^>]+href="https?:\/\/topsitecam\.com\/(stripchat|chaturbate)\/([^/"]+)\/"[^>]*>[\s\S]{0,500}?<img[^>]+src="([^"]+)"[^>]*>/gi;
+    let m;
+    while((m=re.exec(html))!==null){
+      const pl=m[1].toLowerCase(),n=m[2].toLowerCase(),th=m[3];
+      if(!seen.has(n)&&n&&th){seen.add(n);models.push({n,pl,th});}
+    }
+    if(models.length>=4){renderGrid(models);sub.textContent=`${models.length} couples · ${new Date().toLocaleTimeString()}`;}
+    else sub.textContent=`Cached · ${new Date().toLocaleTimeString()}`;
+  }catch{sub.textContent=`Cached list`;}
+}
+function renderGrid(models){
+  const grid=document.getElementById('mgrid');grid.innerHTML='';
+  models.forEach(m=>{
+    const wled=watchlist.some(w=>w.user===m.n&&w.platform===m.pl);
+    const pbcls=m.pl==='chaturbate'?'pb-cb':m.pl==='jerkmate'?'pb-jm':'pb-sc';
+    const pblbl=m.pl==='chaturbate'?'CB':m.pl==='jerkmate'?'JM':'SC';
+    const c=document.createElement('div');c.className='mc'+(wled?' wl':'');
+    c.innerHTML=`<div class="tw"><img src="${m.th}" loading="lazy" onerror="this.style.opacity='.1'">
+      <span class="pbg ${pbcls}">${pblbl}</span>
+      <button class="starb${wled?' on':''}" data-n="${m.n}" data-pl="${m.pl}" data-th="${m.th}" onclick="toggleFav(event,this)">${wled?'★':'☆'}</button>
+      </div><div class="mi"><div class="mn">${m.n}</div><div class="ms">${m.pl}</div></div>`;
+    c.querySelector('.tw img').addEventListener('click',()=>goWatch(m.n,m.pl));
+    c.querySelector('.mi').addEventListener('click',()=>goWatch(m.n,m.pl));
+    grid.appendChild(c);
+  });
+}
+function goWatch(name,platform){
+  showTab('extract');
+  document.getElementById('q').value=`${platform}/${name}`;
+  document.getElementById('xb').style.display='block';
+  const map={stripchat:'pp-sc',chaturbate:'pp-cb',jerkmate:'pp-jm'};
+  if(map[platform]){document.querySelectorAll('.pp').forEach(b=>b.classList.remove('on'));document.getElementById(map[platform]).classList.add('on');curPlatform=platform;}
+  doSniff();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WATCHLIST
+═══════════════════════════════════════════════════════════ */
+function saveWL(){localStorage.setItem('sx3_wl',JSON.stringify(watchlist));}
+function addWL(){const n=document.getElementById('wlin').value.trim().toLowerCase();const pl=document.getElementById('wlpl').value;if(!n)return;if(!watchlist.some(w=>w.user===n&&w.platform===pl)){watchlist.push({user:n,platform:pl,live:null});saveWL();renderWL();toast(`★ Watching ${n}`,`${pl}`);}document.getElementById('wlin').value='';}
+function toggleFav(e,btn){e.stopPropagation();const{n,pl,th}=btn.dataset;const idx=watchlist.findIndex(w=>w.user===n&&w.platform===pl);if(idx>-1){watchlist.splice(idx,1);btn.textContent='☆';btn.classList.remove('on');btn.closest('.mc').classList.remove('wl');toast('Removed',n);}else{watchlist.push({user:n,platform:pl,thumb:th,live:null});btn.textContent='★';btn.classList.add('on');btn.closest('.mc').classList.add('wl');toast(`★ ${n}`,'Watching — will notify when live');}saveWL();}
+function removeWL(u,p){watchlist=watchlist.filter(w=>!(w.user===u&&w.platform===p));saveWL();renderWL();}
+function renderWL(){
+  const c=document.getElementById('wll');
+  if(!watchlist.length){c.innerHTML='<div class="empty">No models saved.</div>';return;}
+  c.innerHTML=watchlist.map(w=>`<div class="wlr">
+    <span class="wln">${w.user}</span><span class="wlpl">${w.platform}</span>
+    <span class="wlst ${w.live===true?'on':'off'}">${w.live===true?'🟢 LIVE':w.live===false?'⚫ off':'⚪ —'}</span>
+    <button class="wlp" onclick="goWatch('${w.user}','${w.platform}')">▶ Watch</button>
+    <button class="wlx" onclick="removeWL('${w.user}','${w.platform}')">✕</button>
+  </div>`).join('');
+}
+async function pollWL(){
+  for(const w of watchlist){
+    try{
+      let live=false;
+      if(w.platform==='chaturbate'){const d=await pFetch(`https://chaturbate.com/api/chatvideocontext/${w.user}/`,true,6000);live=d?.room_status==='public';}
+      else if(w.platform==='stripchat'){const d=await pFetch(`https://stripchat.com/api/front/v2/models/username/${w.user}/cam`,true,6000);live=d?.model?.liveStatus==='public'||d?.liveStatus==='public';}
+      const was=w.live;w.live=live;
+      if(live&&was===false){
+        toast(`🔴 ${w.user} is LIVE!`,`${w.platform}`,true);
+        if('Notification' in window&&Notification.permission==='granted')
+          new Notification(`🔴 ${w.user} is LIVE!`,{body:w.platform});
+      }
+    }catch{}
+  }
+  saveWL();
+  if(document.getElementById('tab-watchlist').style.display==='block')renderWL();
+}
+
+/* ─── TOAST ─── */
+function toast(title,msg,urg=false){
+  const c=document.getElementById('toasts');const t=document.createElement('div');
+  t.className='toast'+(urg?' urg':'');
+  t.innerHTML=`<div class="tt">${title}</div><div class="tm">${msg}</div>`;
+  c.appendChild(t);setTimeout(()=>t.remove(),6000);
+}
+
+/* ─── INIT ─── */
+window.addEventListener('DOMContentLoaded',()=>{
+  loadGrid();
+  checkBackend();
+  if('Notification' in window&&Notification.permission==='default')Notification.requestPermission();
+  setInterval(pollWL,90000);setTimeout(pollWL,8000);
+});
+</script>
+</body>
+</html>
